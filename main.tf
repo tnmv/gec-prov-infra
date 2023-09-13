@@ -144,7 +144,7 @@ resource "aws_vpc" "vpc_master" {
 }
 
 variable "region1" {
-    type = "string"
+    type = string
     default = "us-east-1"
 }
 variable "id_image" {
@@ -160,12 +160,12 @@ variable "id_subnet" {
     default ="subnet-0a799f29f38d852a5"
 }
 variable "key_access" {
-    type = "string"
+    type = string
 }
 variable "key_secret" {
-    type = "string"
+    type = string
 }
 variable "instance_type" {
-    type = "string"
+    type = string
     default = "t2.medium"
 }
