@@ -96,6 +96,28 @@ resource "aws_instance" "bastion" {
   source_dest_check      = false
   key_name               = aws_key_pair.key_pair.key_name
 
+  provisioner "file" {
+    source      = "ssh_key.pem"
+    destination = "/ssh_key.pem"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "apt update -y",
+      "apt install ansible python3-pip -y ",
+      "pip install kubernetes",
+      "ansible-galaxy collection install ansible.posix",
+      "ansible-galaxy collection install community.general",
+      "ansible-galaxy collection install cloud.common",
+      "ansible-galaxy collection install community.kubernetes",
+      "git clone https://github.com/tnmv/gec-config-infra.git",
+      "cd gec-config-infra",
+      "cp /ssh_key.pem .",
+      "chmod 700 ssh_key.pem",
+      "ansible-playbook install.yaml"
+    ]
+  }
+
   tags = {
     owner = "GEC Microservices"
     Name  = "bastion"
