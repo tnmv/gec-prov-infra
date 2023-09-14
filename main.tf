@@ -59,6 +59,11 @@ resource "aws_instance" "cp01" {
     Name  = "cp01"
   }
 }
+resource "local_file" "ip_cp01" {
+      content  = aws_instance.cp01.private_ip
+      filename = "cp01"
+}
+
 
 
 resource "aws_instance" "cp02" {
@@ -74,6 +79,10 @@ resource "aws_instance" "cp02" {
     Name  = "cp02"
   }
 }
+ resource "local_file" "ip_cp02" {
+      content  = aws_instance.cp02.private_ip
+      filename = "cp02"
+}
 resource "aws_instance" "cp03" {
   ami                    = var.id_image
   instance_type          = var.instance_type
@@ -87,6 +96,11 @@ resource "aws_instance" "cp03" {
     Name  = "cp03"
   }
 }
+resource "local_file" "ip_cp03" {
+      content  = aws_instance.cp03.private_ip
+      filename = "cp03"
+}
+
 
 resource "aws_instance" "bastion" {
   ami                    = var.id_image
@@ -95,16 +109,56 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids = [aws_security_group.aws-vm-sg.id]
   source_dest_check      = false
   key_name               = aws_key_pair.key_pair.key_name
-
+ 
   provisioner "file" {
-    source      = "ssh_key.pem"
-    destination = "/ssh_key.pem"
+    source      = "./ssh_key.pem"
+    destination = "/home/ubuntu/ssh_key.pem"
+    
+    connection {
+      host = self.public_ip
+      type = "ssh"
+      user = "ubuntu"
+      private_key = file("ssh_key.pem")
+    } 
   }
 
+  provisioner "file" {
+    source      = "cp01"
+    destination = "/home/ubuntu/cp01"
+    
+    connection {
+      host = self.public_ip
+      type = "ssh"
+      user = "ubuntu"
+      private_key = file("ssh_key.pem")
+    }
+  }
+  provisioner "file" {
+    source      = "cp02"
+    destination = "/home/ubuntu/cp02"
+    
+    connection {
+      host = self.public_ip
+      type = "ssh"
+      user = "ubuntu"
+      private_key = file("ssh_key.pem")
+    }
+  }
+  provisioner "file" {
+    source      = "cp03"
+    destination = "/home/ubuntu/cp03"
+
+    connection {
+      host = self.public_ip
+      type = "ssh"
+      user = "ubuntu"
+      private_key = file("ssh_key.pem")
+    }
+  }
   provisioner "remote-exec" {
     inline = [
-      "apt update -y",
-      "apt install ansible python3-pip -y ",
+      "sudo apt update -y",
+      "sudo apt install ansible python3-pip -y ",
       "pip install kubernetes",
       "ansible-galaxy collection install ansible.posix",
       "ansible-galaxy collection install community.general",
@@ -112,16 +166,26 @@ resource "aws_instance" "bastion" {
       "ansible-galaxy collection install community.kubernetes",
       "git clone https://github.com/tnmv/gec-config-infra.git",
       "cd gec-config-infra",
-      "cp /ssh_key.pem .",
-      "chmod 700 ssh_key.pem",
+      "cp /home/ubuntu/ssh_key.pem .",
+      "chmod 700 ssh_key.pem", 
+      "chmod +x inventory.sh",
+      "./inventory.sh",
       "ansible-playbook install.yaml"
     ]
+
+    connection {
+      host = self.public_ip
+      type = "ssh"
+      user = "ubuntu"
+      private_key = file("ssh_key.pem")
+    }
   }
 
   tags = {
     owner = "GEC Microservices"
     Name  = "bastion"
   }
+  depends_on = [local_file.ssh_key, aws_instance.cp01, aws_instance.cp02, aws_instance.cp03]
 }
 
 resource "aws_efs_file_system"  "data-k8s"{
