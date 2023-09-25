@@ -29,7 +29,8 @@ resource "local_file" "ssh_key" {
 resource "aws_security_group" "aws-vm-sg" {
   name        = "vm-sg"
   description = "Allow incoming connections"
-  vpc_id      = var.id_vpc
+#  vpc_id      = var.id_vpc
+  vpc_id      = aws_vpc.vpc_master.id
   ingress {
     from_port   = 0
     to_port     = 0
@@ -49,7 +50,8 @@ resource "aws_security_group" "aws-vm-sg" {
 resource "aws_instance" "cp01" {
   ami                    = var.id_image
   instance_type          = var.instance_type
-  subnet_id              = var.id_subnet
+#subnet_id              = var.id_subnet
+  subnet_id              = aws_subnet.private_subnets[0].id
   vpc_security_group_ids = [aws_security_group.aws-vm-sg.id]
   source_dest_check      = false
   key_name               = aws_key_pair.key_pair.key_name
@@ -69,7 +71,8 @@ resource "local_file" "ip_cp01" {
 resource "aws_instance" "cp02" {
   ami                    = var.id_image
   instance_type          = var.instance_type
-  subnet_id              = var.id_subnet
+#  subnet_id              = var.id_subnet
+  subnet_id              = aws_subnet.private_subnets[0].id
   vpc_security_group_ids = [aws_security_group.aws-vm-sg.id]
   source_dest_check      = false
   key_name               = aws_key_pair.key_pair.key_name
@@ -86,7 +89,8 @@ resource "aws_instance" "cp02" {
 resource "aws_instance" "cp03" {
   ami                    = var.id_image
   instance_type          = var.instance_type
-  subnet_id              = var.id_subnet
+#  subnet_id              = var.id_subnet
+  subnet_id              = aws_subnet.private_subnets[0].id
   vpc_security_group_ids = [aws_security_group.aws-vm-sg.id]
   source_dest_check      = false
   key_name               = aws_key_pair.key_pair.key_name
@@ -105,7 +109,8 @@ resource "local_file" "ip_cp03" {
 resource "aws_instance" "bastion" {
   ami                    = var.id_image
   instance_type          = var.instance_type
-  subnet_id              = var.id_subnet
+#  subnet_id              = var.id_subnet
+  subnet_id              = aws_subnet.private_subnets[1].id
   vpc_security_group_ids = [aws_security_group.aws-vm-sg.id]
   source_dest_check      = false
   key_name               = aws_key_pair.key_pair.key_name
@@ -205,6 +210,56 @@ resource "aws_vpc" "vpc_master" {
     Name = "VPC-GEC-K8S"
     Owner = "GEC Microservices"
   }
+}
+
+resource "aws_subnet" "private_subnets" {
+  count      = length(var.subnet_vpc_gec)
+  vpc_id     = aws_vpc.vpc_master.id
+  cidr_block = element(var.subnet_vpc_gec, count.index)
+  availability_zone = element(var.azs, count.index)
+  map_public_ip_on_launch = "true"
+  tags = {
+    Name = "Subnet ${count.index + 1}"
+  }
+}
+
+resource "aws_internet_gateway" "gw" {
+ vpc_id = aws_vpc.vpc_master.id
+ 
+ tags = {
+   Name = "GEC VPC IG"
+ }
+}
+
+resource "aws_route_table" "second_rt" {
+   vpc_id = aws_vpc.vpc_master.id
+ 
+   route {
+     cidr_block = "0.0.0.0/0"
+     gateway_id = aws_internet_gateway.gw.id
+   }
+ 
+   tags = {
+     Name = "Route Table GEC"
+   }
+}
+
+resource "aws_route_table_association" "subnet_asso" {
+   count = length(var.subnet_vpc_gec)
+   subnet_id      = element(aws_subnet.private_subnets[*].id, count.index)
+   route_table_id = aws_route_table.second_rt.id
+}
+
+variable "azs" {
+ type        = list(string)
+ description = "Availability Zones"
+ default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
+}
+
+variable "subnet_vpc_gec" {
+ type        = list(string)
+ description = "Subnet CIDR values"
+ default     = ["192.168.10.0/24", "192.168.20.0/24", "192.168.30.0/24"]
 }
 
 variable "region1" {
